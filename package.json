@@ -1,0 +1,28 @@
+{
+  "name": "satbaltyk-trojmiasto-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "process-data": "python scripts/process_data.py",
+    "process-data:watch": "python scripts/process_data.py --watch"
+  },
+  "dependencies": {
+    "@fontsource/open-sauce-sans": "^5.3.0",
+    "@fontsource/space-mono": "^5.3.0",
+    "leaflet": "^1.9.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
+  }
+}

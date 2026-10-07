@@ -1,0 +1,2561 @@
+/* Paleta i typografia dobrane pod identyfikację BENTOS (bentos.info):
+   głęboka granatowa toń + limonkowy akcent #aaff00, Open Sauce Sans na tekst,
+   Space Mono na etykiety/dane liczbowe (stylistyka "odczytu z instrumentu"). */
+:root {
+  --bg: #00051f;
+  --bg-deep: #000210;
+  --surface: #0f1c51;
+  --surface-alt: #1b275a;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text-primary: #ffffff;
+  --text-secondary: #c4ced8;
+  --text-muted: #7c88a6;
+  --accent: #aaff00;
+  --accent-ink: #001562;
+  --accent-dim: rgba(170, 255, 0, 0.14);
+  /* Drugi akcent (z niewykorzystanego tokenu --primary #0036ff na bentos.info)
+     do odroznienia "oficjalnych" boi od punktow dodawanych przez uzytkownika. */
+  --accent-2: #3b6bff;
+  --accent-2-dim: rgba(59, 107, 255, 0.18);
+  --font-sans: "Open Sauce Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --radius-full: 999px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.layout {
+  /* Na desktopie panel boczny NAKLADA sie na mapę (mapa ma zawsze pełną
+     szerokość i nie zmienia rozmiaru przy chowaniu panelu - dzięki temu nic
+     się nie przelicza ani nie "pływa" w trakcie animacji). Elementy
+     przyklejone do lewej strony mapy odsuwają się o --sidebar-offset. */
+  --sidebar-width: 340px;
+  --sidebar-offset: var(--sidebar-width);
+  --sidebar-ease: 0.32s cubic-bezier(0.22, 0.8, 0.26, 1);
+  display: flex;
+  height: 100vh;
+  position: relative;
+}
+
+.layout.sidebar-collapsed {
+  --sidebar-offset: 0px;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  /* Pod animowaną taflą (SidebarWater) prosty gradient w kolorach hero
+     bentos.info: granatowy błękit #001562 gasnący w ciemną toń. */
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(180deg, #001562 0%, #00093d 55%, var(--bg) 100%);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  /* na niskich ekranach (np. rozwiniete porownanie warstw) panel sie przewija */
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+@media (min-width: 721px) {
+  .sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 700; /* nad mapą, pod uchwytem (800) i panelem boi (900) */
+    box-shadow: 10px 0 36px rgba(0, 0, 0, 0.35);
+    transition: transform var(--sidebar-ease), box-shadow var(--sidebar-ease), visibility 0s;
+  }
+
+  /* visibility z opoznieniem: po wsunieciu panel znika tez dla klawiatury
+     (Tab nie wchodzi w schowane elementy), ale dopiero po animacji */
+  .sidebar.is-collapsed {
+    transform: translateX(-100%);
+    visibility: hidden;
+    box-shadow: none;
+    transition: transform var(--sidebar-ease), box-shadow var(--sidebar-ease), visibility 0s linear 0.32s;
+  }
+}
+
+/* z-index -1 w izolowanym kontekście .sidebar = nad jego tłem, pod całą
+   zawartością. */
+.sidebar-water {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 340px;
+  height: 460px;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+}
+
+.sidebar-water-video,
+.sidebar-water-tint,
+.sidebar-water-rays,
+.sidebar-water-particles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Zmienne --water-*, --ray-*, --sun-*, --moon-* ustawia SidebarWater z pory
+   dnia (src/utils/sky.js). Wartosci zapasowe = dzienny wyglad panelu. */
+.sidebar-water-video {
+  object-fit: cover;
+  object-position: top center;
+  filter: brightness(var(--water-brightness, 1)) saturate(var(--water-saturate, 1));
+}
+
+.sidebar-water-tint {
+  background: linear-gradient(
+    to bottom,
+    var(--water-tint-top, rgba(0, 21, 98, 0.35)) 0%,
+    var(--water-tint-mid, rgba(0, 21, 98, 0.6)) 50%,
+    var(--water-tint-bottom, rgba(0, 21, 98, 0.92)) 100%
+  );
+}
+
+/* Slonce (pozycja z azymutu i wysokosci) i ksiezyc (nocą) jako miękka poswiata
+   nad tafla - nad tintem, pod promieniami. */
+.sidebar-water-sun,
+.sidebar-water-moon {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+}
+
+.sidebar-water-sun {
+  left: var(--sun-x, 50%);
+  top: var(--sun-y, 20%);
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(
+    circle,
+    rgba(var(--sun-rgb, 255, 250, 230), 0.95) 0%,
+    rgba(var(--sun-rgb, 255, 250, 230), 0.3) 30%,
+    transparent 68%
+  );
+  opacity: var(--sun-opacity, 0.35);
+}
+
+.sidebar-water-moon {
+  left: 78%;
+  top: 13%;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(225, 236, 255, 0.85) 0%, rgba(190, 210, 255, 0.22) 38%, transparent 68%);
+  opacity: var(--moon-opacity, 0);
+}
+
+.sidebar-water-rays {
+  overflow: hidden;
+  mix-blend-mode: screen;
+}
+
+.sidebar-water-ray {
+  position: absolute;
+  top: -10%;
+  width: 14%;
+  height: 120%;
+  background: linear-gradient(var(--ray-top, rgba(255, 255, 255, 0.55)), var(--ray-mid, rgba(170, 220, 255, 0.25)) 40%, transparent);
+  filter: blur(14px);
+  animation: sidebar-god-ray ease-in-out infinite;
+}
+
+@keyframes sidebar-god-ray {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: translateX(0) skewX(-12deg);
+  }
+  50% {
+    opacity: 0.45;
+    transform: translateX(14px) skewX(-10deg);
+  }
+}
+
+/* Zawsze widoczny uchwyt do chowania/pokazywania panelu - siedzi dokladnie
+   na granicy panelu i mapy, przesuwa sie razem z animacja panelu. */
+.sidebar-toggle {
+  position: absolute;
+  top: 50%;
+  left: var(--sidebar-width);
+  transform: translate(-50%, -50%);
+  z-index: 800;
+  width: 22px;
+  height: 46px;
+  border-radius: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: left var(--sidebar-ease), background 0.15s, color 0.15s;
+}
+
+.sidebar-toggle:hover {
+  background: var(--surface-alt);
+  color: var(--text-primary);
+}
+
+.sidebar-toggle-label {
+  display: none;
+}
+
+/* Schowany panel: zamiast waskiego uchwytu wyrazna limonkowa zakladka
+   "☰ Warstwy" przyklejona do lewej krawedzi mapy - tak jak przycisk na
+   telefonie, zeby nie trzeba bylo szukac, jak panel przywrocic. */
+@media (min-width: 721px) {
+  .layout.sidebar-collapsed .sidebar-toggle {
+    left: 0;
+    transform: translateY(-50%);
+    width: auto;
+    height: auto;
+    gap: 6px;
+    padding: 12px 16px 12px 14px;
+    border-color: var(--accent);
+    border-left: 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+    box-shadow: 0 0 18px rgba(170, 255, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .layout.sidebar-collapsed .sidebar-toggle:hover {
+    background: #bfff3d;
+    color: var(--accent-ink);
+    padding-left: 18px;
+  }
+
+  .layout.sidebar-collapsed .sidebar-toggle-chevron {
+    display: none;
+  }
+
+  .layout.sidebar-collapsed .sidebar-toggle-label {
+    display: inline;
+  }
+}
+
+/* Plakietka marki pływająca nad mapą (prawy górny róg) - logo Bentos +
+   lokalizacja, a obok (za cienką kreską) przełącznik języka interfejsu. */
+.brand-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 650;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 14px;
+  background: rgba(0, 5, 31, 0.55);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.brand-badge-id {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
+}
+
+.brand-badge-logo {
+  height: 30px;
+  width: auto;
+  display: block;
+}
+
+.brand-badge-location {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Przełącznik PL/EN/SV - pigułka z przesuwanym limonkowym "kciukiem"
+   (ta sama stylistyka co przełącznik boi w panelu bocznym). */
+.language-switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.language-switch-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 3);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(170, 255, 0, 0.35);
+  transition: transform 0.22s ease;
+}
+
+.language-switch.is-en .language-switch-thumb {
+  transform: translateX(100%);
+}
+
+.language-switch.is-sv .language-switch-thumb {
+  transform: translateX(200%);
+}
+
+.language-switch button {
+  position: relative;
+  z-index: 1;
+  min-width: 30px;
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.language-switch button:hover:not(.is-active) {
+  color: var(--text-primary);
+}
+
+.language-switch button.is-active {
+  color: var(--accent-ink);
+  cursor: default;
+}
+
+.language-switch button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.public-signals {
+  position: absolute;
+  left: calc(50% + var(--sidebar-offset, 0px) / 2); /* srodek widocznej czesci mapy */
+  transition: left var(--sidebar-ease);
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 650;
+  width: min(420px, calc(100vw - 28px));
+  padding: 10px 12px 12px;
+  background: rgba(0, 5, 31, 0.66);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.public-signals-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.public-signals-head strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.public-signals-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.public-signals-close {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.public-signals-close:hover,
+.public-signals-info:hover,
+.public-signals-info.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.public-signals-info {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: none;
+}
+
+.public-signals-explain {
+  margin-top: 8px;
+  padding-top: 8px;
+  max-height: min(34vh, 240px);
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.public-signals-explain p {
+  margin: 0 0 6px;
+}
+
+.public-signals-explain dl {
+  margin: 0;
+}
+
+.public-signals-explain dt {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.public-signals-explain dd {
+  margin: 1px 0 0;
+}
+
+.public-signals-explain .public-signals-explain-note {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.public-signals-scope {
+  margin: -2px 0 8px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-signals-hint {
+  margin: -4px 0 8px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-muted);
+}
+
+.public-signals-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.public-signal {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.public-signal span,
+.public-signal strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.public-signal span {
+  margin-bottom: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.public-signal strong {
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+/* Krotkie podswietlenie po zmianie zakresu oceny (boja / punkt / caly
+   Baltyk) - siatka jest montowana od nowa, wiec animacja odpala sie sama. */
+.public-signal {
+  animation: signal-refresh 0.7s ease-out;
+}
+
+@keyframes signal-refresh {
+  from {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+}
+
+.public-signal.is-good strong {
+  color: var(--accent);
+}
+
+.public-signal.is-warn strong {
+  color: #ffd166;
+}
+
+.public-signal.is-bad strong {
+  color: #ff7a7a;
+}
+
+/* Plakietka "wersja alpha" - lewy dolny róg mapy, zeby nikt nie wzial tego
+   za gotowy produkt. Pulsujaca kropka wiaze sie z reszta "zywych" animacji. */
+.alpha-badge {
+  position: absolute;
+  bottom: 14px;
+  left: calc(var(--sidebar-offset, 0px) + 14px);
+  transition: left var(--sidebar-ease);
+  z-index: 650;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  max-width: 320px;
+  background: rgba(0, 5, 31, 0.65);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.alpha-badge-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: alpha-blink 1.8s ease-in-out infinite;
+}
+
+.alpha-badge-text {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--text-secondary);
+}
+
+.alpha-badge-text strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  gap: 6px;
+  padding: 20px 16px 30px;
+}
+
+.product-tile {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 2px;
+  min-width: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(15, 28, 81, 0.72);
+  backdrop-filter: blur(6px);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.product-tile:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.product-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.product-tile.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.product-tile-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-tile-icon svg {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.2s ease;
+}
+
+.product-tile:hover .product-tile-icon svg {
+  animation: icon-pulse 0.6s ease-in-out;
+}
+
+.product-tile-label {
+  max-width: 100%;
+  font-size: 9.5px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel {
+  padding: 18px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.panel h2 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+  font-weight: 400;
+}
+
+/* Pierwszy panel (nazwa aktywnej warstwy) lezy tuz pod tafla wody z tla
+   panelu - jasniejszy tekst z cieniem, zeby dalo sie go przeczytac. */
+.product-grid + .panel h2 {
+  color: var(--text-primary);
+  text-shadow: 0 1px 6px rgba(0, 9, 61, 0.9);
+}
+
+.legend-strip {
+  width: 100%;
+  height: 12px;
+  border-radius: var(--radius-full);
+  display: block;
+  border: 1px solid var(--border);
+}
+
+.legend-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.time-control {
+  margin-top: 18px;
+}
+
+.time-control-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.play-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  font-size: 12px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.15s, transform 0.15s;
+}
+
+.play-btn:hover {
+  filter: brightness(1.1);
+  transform: scale(1.1);
+}
+
+.time-slider {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.time-label {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.time-label-tz {
+  color: var(--text-muted);
+}
+
+.speed-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.speed-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.speed-btn {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.speed-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.speed-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+/* Panel punktow rosnie i wypelnia reszte wysokosci paska bocznego, ale sam
+   sie nie przewija - przewija sie tylko lista punktow w srodku (.points-list),
+   zeby duza liczba pinow nie wymuszala scrollowania calego panelu. */
+.points-panel {
+  flex: 1 1 auto;
+  min-height: 170px; /* przy rozwinietym porownaniu warstw panel boczny raczej sie przewinie, niz zgniecie liste */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.points-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex: none;
+}
+
+.points-panel-head h2 {
+  margin: 0;
+}
+
+.points-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 0;
+}
+
+.points-clear:hover {
+  color: var(--accent);
+}
+
+.points-add-btn {
+  flex: none;
+  width: 100%;
+  padding: 9px 12px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.points-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.points-add-btn.is-armed {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Panel wlacz/wylacz boi - sekcja stala (flex:none), nie rosnie/nie scrolluje sie */
+.buoys-toggle-panel {
+  flex: none;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.switch-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.buoy-sim-tag {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+/* Wylaczone = niebieski (spokojny/nieaktywny), wlaczone ("live") = zielony -
+   ten sam akcent co reszta "zywych"/aktywnych elementow w aplikacji. */
+.switch {
+  flex: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--accent-2-dim);
+  border: 1px solid var(--accent-2);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  transition: left 0.15s ease, background 0.15s ease;
+}
+
+.switch.is-on {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.switch.is-on .switch-thumb {
+  left: 18px;
+  background: var(--accent);
+}
+
+.points-empty {
+  flex: none;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.points-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Cienki, dyskretny scrollbar dla listy punktow (Firefox + WebKit) */
+.points-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.points-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.points-list::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.points-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.points-row.is-selected {
+  border-color: var(--accent);
+  background: rgba(170, 255, 0, 0.07);
+}
+
+.points-row-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.points-select {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.points-select:hover .points-coords,
+.points-select[aria-pressed="true"] .points-coords {
+  color: var(--text-primary);
+}
+
+.points-row-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 30px;
+}
+
+.points-letter {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.points-coords {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.points-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.points-value-empty {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.points-chart-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.points-chart-btn:hover {
+  text-decoration: underline;
+}
+
+.points-remove {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.points-remove:hover {
+  color: var(--text-primary);
+  background: var(--surface-alt);
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px 20px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sidebar-footer a:hover {
+  text-decoration: underline;
+}
+
+.sidebar-footer-legal {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  opacity: 0.8;
+}
+
+/* isolation zamyka z-indeksy Leafleta (kontrolki = 1000) wewnątrz mapy, żeby
+   nie wychodziły nad szufladę panelu na telefonie (z-index 950). */
+.map-wrap {
+  flex: 1;
+  position: relative;
+  isolation: isolate;
+}
+
+.map {
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+}
+
+/* Kursor zmienia sie na celownik tylko w trybie dodawania punktu (patrz
+   przycisk "+ Dodaj punkt") - domyslnie mapa zachowuje sie normalnie
+   (przeciaganie = Leaflet grab/grabbing), zeby klik nigdy nie zaskakiwal. */
+.map.map-armed {
+  cursor: crosshair;
+}
+
+.pin-mode-hint {
+  position: absolute;
+  top: 14px;
+  left: calc(50% + var(--sidebar-offset, 0px) / 2);
+  transition: left var(--sidebar-ease);
+  transform: translateX(-50%);
+  z-index: 650;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* "Celownik" zastępujący suchy kursor podczas najeżdżania na mapę - ikona
+   produktu + live-odczyt wartości. pointer-events:none, żeby nigdy nie
+   przejmował zdarzeń myszy nad Leafletem (siedzi dokładnie pod kursorem). */
+.measure-cursor {
+  position: absolute;
+  z-index: 650;
+  transform: translate(14px, 14px);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.measure-cursor-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 3px rgba(170, 255, 0, 0.22);
+  animation: cursor-breathe 1.6s ease-in-out infinite;
+}
+
+.measure-cursor-dot svg {
+  width: 15px;
+  height: 15px;
+}
+
+.measure-cursor-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: rgba(0, 5, 31, 0.85);
+  border: 1px solid var(--border-strong);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+/* Przypięte punkty pomiarowe (Marker z L.divIcon) */
+.pin-marker-wrap {
+  background: transparent;
+  border: none;
+}
+
+/* Znaczniki sa fokusowalne (Tab) - zamiast kwadratowej obwodki kontenera
+   divIcon okragly obrys wokol samego punktu/boi. */
+.pin-marker-wrap:focus {
+  outline: none;
+}
+
+.pin-marker-wrap:focus-visible .pin-marker,
+.pin-marker-wrap:focus-visible .buoy-marker {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+
+.pin-marker {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-ink);
+  border: 2px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.pin-marker:hover {
+  transform: scale(1.12);
+}
+
+/* W trybie dodawania punktow klik w punkt go usuwa - najechanie zapowiada to
+   czerwonym obrysem i krzyzykiem zamiast ikony warstwy. */
+.map-armed .pin-marker:hover {
+  border-color: #ff7a7a;
+  background: #2a0816;
+  box-shadow: 0 0 14px rgba(255, 122, 122, 0.55);
+}
+
+.map-armed .pin-marker:hover .pin-marker-ring {
+  border-color: #ff7a7a;
+}
+
+.map-armed .pin-marker:hover .pin-marker-icon {
+  opacity: 0;
+}
+
+.map-armed .pin-marker:hover::after {
+  content: "×";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff7a7a;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pin-marker.is-selected {
+  background: var(--accent);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.22), 0 0 18px rgba(170, 255, 0, 0.65);
+}
+
+.pin-marker.is-selected .pin-marker-icon {
+  color: var(--accent-ink);
+}
+
+.pin-marker.is-selected .pin-marker-ring {
+  border-color: #ffffff;
+}
+
+/* Sonarowy "ping" - ciagle emanujacy pierscien, zeby przypiete punkty
+   wygladaly na aktywne pomiary, a nie statyczne znaczniki. */
+.pin-marker-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: pin-ping 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+.pin-marker-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+}
+
+.pin-marker-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pin-marker-letter {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Boje - stale, pulsujace punkty "live" - ten sam zielony akcent co reszta
+   aktywnych/zywych elementow apki (dopasowane do wlaczonego przelacznika). */
+.buoy-marker {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-ink);
+  border: 2px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.buoy-marker:hover {
+  transform: scale(1.12);
+}
+
+.buoy-marker.is-selected {
+  background: var(--accent);
+  border-color: #ffffff;
+  color: var(--accent-ink);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.22), 0 0 18px rgba(170, 255, 0, 0.65);
+}
+
+.buoy-marker.is-selected .buoy-marker-ring {
+  border-color: #ffffff;
+  animation-duration: 1.4s;
+}
+
+.buoy-marker.is-selected .buoy-marker-icon {
+  color: var(--accent-ink);
+}
+
+.buoy-marker-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: pin-ping 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+.buoy-marker-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+}
+
+.buoy-marker-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* "Ubogiego dark mode" dla standardowych kafli OSM (podklad "Ciemna") -
+   odwrocenie barw + korekta odcienia/jasnosci. Klasa siedzi tylko na warstwie
+   kafli, wiec nakladka z danymi zachowuje swoje wlasciwe kolory. Ta sama klasa
+   trafia na miniature w wyborze podkladu. */
+.basemap-inverted {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.92) saturate(0.7);
+}
+
+/* Leaflet: przemalowanie kontrolek/popupów pod ciemny motyw */
+/* kontrolki po lewej (zoom) odsuwaja sie od panelu razem z jego animacja */
+.layout .leaflet-left {
+  left: var(--sidebar-offset, 0px);
+  transition: left var(--sidebar-ease);
+}
+
+.leaflet-control-zoom a {
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--surface-alt) !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(0, 5, 31, 0.7) !important;
+  color: var(--text-muted) !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--text-secondary) !important;
+}
+
+/* Porownanie warstw - pionowa granica przez cala mape z uchwytem posrodku.
+   Sama linia nie lapie myszy (mapa pod nia dalej dziala), tylko uchwyt. */
+.compare-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 500;
+  width: 0;
+  pointer-events: none;
+}
+
+.compare-divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(170, 255, 0, 0.45);
+}
+
+.compare-handle {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.compare-handle:focus-visible {
+  outline: none;
+}
+
+.compare-handle:focus-visible .compare-knob {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.compare-knob {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  box-shadow: 0 0 14px rgba(170, 255, 0, 0.45);
+}
+
+.compare-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: rgba(0, 5, 31, 0.78);
+  backdrop-filter: blur(4px);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.compare-side svg {
+  width: 13px;
+  height: 13px;
+  color: var(--accent);
+}
+
+.compare-body {
+  margin-top: 10px;
+}
+
+.compare-label {
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.compare-switch-row {
+  margin-top: 12px;
+}
+
+.compare-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.compare-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+}
+
+.compare-chip .chart-metric-tab-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.compare-frame {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Wybor podkladu mapy - kwadratowy przycisk tuz pod kontrolka zoomu Leafleta
+   (ten sam rozmiar i ramka), rozwija panel z miniaturami podkladow. */
+.basemap-control {
+  position: absolute;
+  top: 84px;
+  left: calc(var(--sidebar-offset, 0px) + 10px);
+  transition: left var(--sidebar-ease);
+  z-index: 700;
+}
+
+.basemap-toggle {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  background: var(--surface);
+  background-clip: padding-box;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.basemap-toggle:hover,
+.basemap-toggle.is-open {
+  background-color: var(--surface-alt);
+  color: var(--accent);
+}
+
+.basemap-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.basemap-popover {
+  position: absolute;
+  top: 0;
+  left: 44px;
+  width: 252px;
+  padding: 10px 12px 12px;
+  background: rgba(0, 5, 31, 0.88);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.basemap-popover-title {
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.basemap-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 6px;
+}
+
+.basemap-option {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.basemap-thumb {
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  transition: border-color 0.15s ease;
+}
+
+.basemap-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.basemap-thumb.is-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.2) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-position: 7px 7px;
+}
+
+.basemap-option:hover .basemap-thumb {
+  border-color: var(--border-strong);
+}
+
+.basemap-option.is-active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.basemap-option.is-active .basemap-thumb {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(170, 255, 0, 0.25);
+}
+
+.basemap-graticule-row {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.basemap-graticule-row .switch:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Opisy siatki wspolrzednych przy gornej (dlugosc) i lewej (szerokosc)
+   krawedzi mapy. Nad kaflami i nakladka, pod plywajacymi panelami. */
+.graticule-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 450;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.graticule-labels.is-hidden {
+  opacity: 0;
+  transition: none;
+}
+
+.graticule-label {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.62);
+  text-shadow: 0 0 3px rgba(0, 2, 16, 0.9);
+  white-space: nowrap;
+}
+
+.graticule-labels.is-light .graticule-label {
+  color: rgba(0, 21, 98, 0.75);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
+}
+
+.graticule-label.is-lon {
+  top: 6px;
+  transform: translateX(-50%);
+}
+
+.graticule-label.is-lat {
+  left: calc(var(--sidebar-offset, 0px) + 16px);
+  transition: left var(--sidebar-ease);
+  transform: translateY(-50%);
+}
+
+.state-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  padding: 24px;
+  text-align: center;
+}
+
+.state-message code {
+  font-family: var(--font-mono);
+  background: var(--surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Modal z wykresem punktu w czasie */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 2, 16, 0.72);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-card {
+  width: min(680px, 100%);
+  background: var(--bg-deep);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.buoy-panel-handle {
+  cursor: grab;
+  user-select: none;
+}
+
+.buoy-panel-handle:active {
+  cursor: grabbing;
+}
+
+/* Panel boi - w odroznieniu od ChartModal NIE ma tla blokujacego reszte
+   strony: dokuje sie z boku mapy, zeby dalo sie w tym samym czasie
+   sterowac panelem bocznym (np. wlaczyc animacje czasu). */
+.buoy-panel {
+  position: fixed;
+  top: 86px;
+  right: 14px;
+  z-index: 900;
+  transition: width var(--sidebar-ease);
+  width: min(360px, calc(100vw - 380px));
+  background: var(--bg-deep);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.layout.sidebar-collapsed .buoy-panel {
+  width: min(360px, calc(100vw - 28px));
+}
+
+.buoy-panel.has-details {
+  width: min(700px, calc(100vw - 380px));
+}
+
+.layout.sidebar-collapsed .buoy-panel.has-details {
+  width: min(700px, calc(100vw - 28px));
+}
+
+.buoy-panel-body {
+  display: block;
+}
+
+.buoy-panel.has-details .buoy-panel-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.buoy-panel-data {
+  min-width: 0;
+}
+
+.buoy-panel-details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.modal-letter {
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.modal-subtitle {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.modal-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* Publiczny podglad podwodny z belka OSD. */
+.buoy-camera {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 0;
+}
+
+
+.buoy-camera-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  background: var(--bg-deep);
+}
+
+.buoy-camera-osd {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.buoy-camera-source {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 5, 31, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.88);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-decoration: none;
+}
+
+.buoy-camera-source:hover {
+  color: var(--accent);
+}
+
+/* "Podgląd strumienia danych" - wzorowane na sekcji z bentos.info (patrz
+   BuoyModal.jsx), ale jawnie podpisane jako symulacja, nie "LIVE". */
+.stream-eyebrow {
+  margin-bottom: 8px;
+}
+
+.stream-eyebrow-highlight {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.buoy-stream {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.buoy-stream-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.buoy-stream-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.buoy-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: alpha-blink 1.8s ease-in-out infinite;
+}
+
+.buoy-stream-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.buoy-telemetry {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.buoy-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.buoy-stat-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.buoy-stat-value {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.buoy-stat-value small {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.buoy-stat-bar {
+  display: block;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+
+.buoy-stat-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+}
+
+.buoy-stream-footer {
+  margin-top: 10px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.buoy-chart-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  margin-bottom: 0;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.buoy-detail-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.buoy-detail-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+
+.buoy-chart-toggle {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 9px;
+}
+
+.buoy-chart-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.buoy-chart-tab {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 6px 7px;
+}
+
+.chart-metric-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.chart-metric-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+.chart-metric-tab-icon {
+  display: flex;
+  width: 14px;
+  height: 14px;
+}
+
+.chart-metric-tab-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.buoy-chart-tab:not(.is-active):hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.buoy-chart-tab.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.buoy-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: crosshair;
+}
+
+.buoy-chart-readout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 10px;
+  margin-bottom: 5px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.buoy-chart-readout-label {
+  color: var(--text-secondary);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.buoy-chart-readout-time {
+  grid-column: 1;
+}
+
+.buoy-chart-readout strong {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--accent);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.buoy-disclaimer {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.chart-status {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.chart-wrap {
+  position: relative;
+}
+
+.chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: crosshair;
+}
+
+.chart-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-axis-label {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.chart-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-area {
+  fill: var(--accent);
+  opacity: 0.12;
+  stroke: none;
+}
+
+.chart-dot {
+  fill: var(--accent);
+}
+
+.chart-crosshair {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chart-hover-dot {
+  fill: var(--bg-deep);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  background: rgba(0, 5, 31, 0.92);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 5px 9px;
+  pointer-events: none;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.chart-tooltip-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.chart-tooltip-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.chart-svg.is-pickable,
+.buoy-chart-svg.is-pickable {
+  cursor: pointer;
+}
+
+/* Moment ustawiony aktualnie na mapie - przerywana linia z podpisem "mapa". */
+.chart-map-marker line {
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.chart-map-marker text {
+  fill: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.chart-tooltip-row .chart-tooltip-value {
+  color: var(--text-primary);
+}
+
+.chart-tooltip-letter {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.chart-swatch {
+  flex: none;
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.chart-hint {
+  margin: 4px 0 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Wybor punktow do porownania na wykresie - chip jest jednoczesnie legenda
+   (kreska w kolorze serii + litera punktu). */
+.chart-points-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.chart-points-label {
+  margin-right: 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.chart-point-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chart-point-chip .chart-swatch {
+  width: 14px;
+  background: var(--border-strong);
+}
+
+.chart-point-chip:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.chart-point-chip.is-on {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.chart-point-chip.is-main {
+  cursor: default;
+}
+
+.chart-point-chip:disabled:not(.is-main) {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.chart-points-limit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Delikatne animacje "zywej" strony - sonarowy puls na punktach pomiarowych,
+   oddychajacy celownik, odbicie ikon przy hover. */
+@keyframes pin-ping {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.65;
+  }
+  70%,
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+@keyframes cursor-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(170, 255, 0, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(170, 255, 0, 0.1);
+  }
+}
+
+@keyframes icon-pulse {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.22) rotate(-6deg);
+  }
+}
+
+@keyframes alpha-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pin-marker-ring,
+  .measure-cursor-dot,
+  .product-tile:hover .product-tile-icon svg,
+  .play-btn,
+  .pin-marker,
+  .sidebar,
+  .sidebar-toggle,
+  .sidebar-water-ray,
+  .alpha-badge-dot {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 720px) {
+  /* Na telefonie mapa jest domyslnie pelnoekranowa - panel to wysuwana
+     "szuflada" na cala wysokosc, wywolywana przyciskiem, a nie stale
+     wciskana kolumna 55vh (przy dzisiejszej ilosci sekcji nic by sie nie
+     miescilo). */
+  .layout,
+  .layout.sidebar-collapsed {
+    --sidebar-offset: 0px;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+    z-index: 950;
+    transform: translateY(0);
+    transition: transform 0.25s ease;
+    /* Szuflada ma cala wysokosc ekranu, wiec (w odroznieniu od waskiego
+       panelu na desktopie) po prostu przewija sie w calosci - nie trzeba
+       sciskac sekcji, zeby wszystko zmiescilo sie bez scrolla. */
+    overflow-y: auto;
+    padding-bottom: 70px; /* miejsce na pluwajacy przycisk "Zamknij" */
+  }
+
+  .sidebar-water {
+    width: 100%;
+  }
+
+  .points-panel {
+    flex: none;
+    overflow: visible;
+  }
+
+  .points-list {
+    overflow-y: visible;
+    max-height: none;
+  }
+  .sidebar.is-collapsed {
+    transform: translateY(100%);
+  }
+
+  .sidebar-toggle,
+  .layout.sidebar-collapsed .sidebar-toggle {
+    position: fixed;
+    top: auto;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    width: auto;
+    height: auto;
+    padding: 11px 20px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+    font-size: 13px;
+    gap: 6px;
+    z-index: 970;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar-toggle-chevron {
+    display: none;
+  }
+
+  .sidebar-toggle-label {
+    display: inline;
+  }
+
+  .brand-badge {
+    gap: 9px;
+    padding: 7px 8px 7px 10px;
+  }
+
+  .brand-badge-id {
+    padding-right: 9px;
+  }
+
+  .brand-badge-logo {
+    height: 22px;
+  }
+
+  .brand-badge-location {
+    font-size: 9px;
+  }
+
+  .public-signals {
+    left: 50%;
+    bottom: 126px;
+    width: min(420px, calc(100vw - 20px));
+    padding: 9px 10px 10px;
+  }
+
+  .public-signals-grid {
+    gap: 5px;
+  }
+
+  .public-signal {
+    padding: 6px;
+  }
+
+  .alpha-badge {
+    max-width: calc(100vw - 28px);
+    bottom: 70px; /* nad przyciskiem "Warstwy", zeby sie nie zachodzily */
+  }
+
+  .buoy-panel {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    top: 72px;
+    /* konczy sie nad ocena warunkow (bottom 126px + jej wysokosc), zeby
+       ocena dla wybranej boi byla widoczna rownoczesnie z panelem */
+    max-height: calc(100dvh - 72px - 126px - 124px);
+    overflow-y: auto;
+  }
+
+  .layout.signals-hidden .buoy-panel {
+    max-height: calc(100dvh - 72px - 126px);
+  }
+
+  .buoy-panel.has-details .buoy-panel-body {
+    display: block;
+  }
+
+  .buoy-panel-details {
+    margin-bottom: 14px;
+  }
+}

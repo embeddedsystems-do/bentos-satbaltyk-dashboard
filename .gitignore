@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.matplotlib-cache/
+*.log
+.DS_Store
+
+# Surowe eksporty SatBałtyk (GeoTIFF, ~1GB+) - zostają tylko lokalnie.
+# public/data/ (wygenerowane PNG/grid/manifest, ~20MB) JEST commitowane -
+# to jedyne dane, których potrzebuje działający dashboard.
+dane/
+
+# Tymczasowe pliki z lokalnych testow (profile przegladarki, zrzuty ekranu)
+.tmp-*
+__pycache__/
