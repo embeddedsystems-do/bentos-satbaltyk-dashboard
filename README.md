@@ -1,6 +1,6 @@
 # Bentos: SatBałtyk — dashboard dla Trójmiasta
 
-🔗 **Live:** https://matuzale.github.io/bentos-satbaltyk-dashboard/
+🔗 **Live:** https://embeddedsystems-do.github.io/bentos-satbaltyk-dashboard/
 
 Prosty dashboard webowy (React + Vite + Leaflet) do wizualizacji
 danych z eksportu [SatBałtyk](https://satbaltyk.pl) dla całego Bałtyku, ze
